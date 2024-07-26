@@ -21,6 +21,30 @@ import stats_utils as stut
 from Utils.interface import DSA_Mutation_ID, DSA_data, DSA_compute
 
 
+# Curves' report title and description pages parameters
+report_curves_title_page_params: dict = {
+    'x_start': 0.5,
+    'y_start': 0.5,
+    'color': 'blue',
+    'fontsize': 20,
+    'fontstyle': 'italic', 
+    'fontweight': 'bold',
+    'verticalalignment': 'center',
+    'horizontalalignment': 'center',
+}
+
+report_curves_description_pages_params: dict = {
+    'x_start': 0.03,
+    'y_start': 0.97,
+    'color': 'black',
+    'fontsize': 12,
+    'fontstyle': 'normal', 
+    'fontweight': 'normal',
+    'verticalalignment': 'top',
+    'horizontalalignment': 'left',
+}
+
+
 class Status(Enum):
     """Differential survival (DS) analysis status."""
     Ok = 0  # no errors (currently not used)
@@ -457,6 +481,7 @@ def create_survival_results_dataframe(results: dict) ->pd.DataFrame:
         all_dfs.append(df_gn)
     return pd.concat(all_dfs).sort_values(by=['mut_id', 'cancer', 'therapy']).reset_index(drop=True) if all_dfs else pd.DataFrame()
 
+
 def plot_gene_muts_survival_result(result_v: dict, title_str: str,
                                    group1_label: str, group2_label: str,
                                    group1_color: str = 'red', group2_color: str = 'blue',
@@ -489,31 +514,55 @@ def plot_gene_muts_survival_result(result_v: dict, title_str: str,
 
     return fig, ax
 
+
 def plot_results_KM_curves_to_pdf(pdf_file: pathlib.Path, gene_results: dict,
-                                    exclude_genes: tuple[str] = (),
-                                    generate_title_page: bool = True,
-                                    title_page_text: str = '',
-                                    figure_title_base: str = 'KM curve for',
-                                    figsize: tuple = (12, 6,), 
-                                    linewidth: int = 3,
-                                    fontsize: int = 14,
-                                    p_value_txt_pos: tuple = (0.4, 0.75,),
-                                    group1_color = 'red', 
-                                    group2_color = 'blue') -> None:
-    """Generates all result KM curves to a pdf file."""
-    with PdfPages(pdf_file) as fp:
-        if generate_title_page:
-            # title page
+                                  exclude_genes: tuple = (),
+                                  title_page_text: str = '',
+                                  title_page_params = None, #report_curves_title_page_params,
+                                  description_pages_text_list = None,
+                                  description_pages_params = None, #report_curves_description_pages_params,
+                                  figure_title_base: str = 'KM curve for',
+                                  figsize: tuple = (12, 6,),
+                                  linewidth: int = 3,
+                                  fontsize: int = 14,
+                                  p_value_txt_pos: tuple = (0.4, 0.75,),
+                                  group1_color = 'red',
+                                  group2_color = 'blue') -> None:
+    """
+    Generates all results' KM curves to a pdf file. 
+    Supports a title page and (possibly) multiple description pages preceeding the KM curves."""
+    if description_pages_text_list is None:
+        description_pages_text_list = []
+    if title_page_params is None:
+        title_page_params = report_curves_title_page_params
+    if description_pages_params is None:
+        description_pages_params = report_curves_description_pages_params
+
+    with PdfPages(str(pdf_file)) as fp:
+        # title page
+        if title_page_text:
             first_page = plt.figure(figsize=figsize)
             first_page.clf()
-            if not title_page_text:
-                title_page_text = f"""KM curves and P-values of Significant Cases\n\n\n\n\n\nGenerated: {datetime.datetime.now().replace(microsecond=0)}."""
-            first_page.text(0.5, 0.5, title_page_text, size=fontsize+4, ha="center", color='blue',
-                            fontstyle='italic', fontweight='bold', horizontalalignment='center',verticalalignment='center')
+            first_page.text(title_page_params['x_start'], title_page_params['y_start'], title_page_text, 
+                            color=title_page_params['color'], horizontalalignment=title_page_params['horizontalalignment'],
+                            verticalalignment=title_page_params['verticalalignment'], fontsize=title_page_params['fontsize'],
+                            fontstyle=title_page_params['fontstyle'], fontweight=title_page_params['fontweight'])
             fp.savefig(first_page)
             plt.close()
 
-        # generate and save the curves
+        # description pages
+        if description_pages_text_list:
+            for page_str in description_pages_text_list:
+                page = plt.figure(figsize=figsize)
+                page.clf()
+                page.text(description_pages_params['x_start'], description_pages_params['y_start'], page_str, 
+                          color=description_pages_params['color'], horizontalalignment=description_pages_params['horizontalalignment'],
+                          verticalalignment=description_pages_params['verticalalignment'], fontsize=description_pages_params['fontsize'],
+                          fontstyle=description_pages_params['fontstyle'], fontweight=description_pages_params['fontweight'])
+                fp.savefig(page)
+                plt.close()
+
+        # KM curves
         for gene, gene_v in gene_results.items():
             if gene in exclude_genes:
                 continue
